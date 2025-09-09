@@ -13,6 +13,7 @@ RUN set -eux; \
     apt-get upgrade -y; \
     apt-get install -y --no-install-recommends \
     mariadb-client \
+    default-mysql-client \
     curl iputils-ping \
     locales zip unzip \
     libzip-dev \
