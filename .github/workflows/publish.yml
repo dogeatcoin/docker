@@ -78,6 +78,6 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ github.run_created_at }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.date_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
