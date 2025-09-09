@@ -39,9 +39,9 @@ docker push ghcr.io/<username>/node-dev:22-alpine
 ### Automated publishing (recommended)
 
 This repository includes a GitHub Actions workflow (.github/workflows/publish.yml) that automatically:
-	•	Builds all images from the images/ directory
-	•	Tags them with semver (vX.Y.Z), rolling (22-alpine), and snapshot (YYYYMMDD) tags
-	•	Pushes them to GHCR
+-	•	Builds all images from the images/ directory
+-	•	Tags them with semver (vX.Y.Z), rolling (22-alpine), and snapshot (YYYYMMDD) tags
+-	•	Pushes them to GHCR
 
 The workflow is triggered on every push to main (and can also be triggered manually).
 
