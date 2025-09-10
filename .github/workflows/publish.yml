@@ -37,6 +37,10 @@ jobs:
             rolling_tag: 8.1-fpm
             build_args: |
               PHP_VERSION=8.1.5-fpm
+          
+          - name: vpn-proxy-dev
+            context: images/vpn-proxy
+            rolling_tag: latest
 
     steps:
       - name: Checkout
