@@ -7,7 +7,8 @@ All images are built and published to **GitHub Container Registry (GHCR)** for e
 
 ## 📂 Repository Structure
 
-- **images/** – contains individual Dockerfiles grouped by technology  
+- **images/** – contains individual Dockerfiles grouped by technology
+- **.github/workflows/** – GitHub Actions for building and publishing Docker images to GHCR
 - **README.md** – this documentation  
 
 ---
