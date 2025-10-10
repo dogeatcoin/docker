@@ -1,93 +1,155 @@
-name: Build & Publish Images to GHCR
+name: Build and Push Docker Images
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
     paths:
       - 'images/**'
-      - '.github/workflows/publish.yml'
-  workflow_dispatch:
-
-concurrency:
-  group: ghcr-publish-${{ github.ref }}
-  cancel-in-progress: false
+      - '.github/workflows/build.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'images/**'
+      - '.github/workflows/build.yml'
 
 jobs:
-  build-and-push:
+  detect-changes:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Add more images by appending items to this matrix
-          - name: node-dev
-            context: images/node
-            # Rolling tag you want consumers to pull by default
-            rolling_tag: 22-alpine
-            # Build args passed to Dockerfile in this context
-            build_args: |
-              NODE_VERSION=22-alpine
-
-          - name: node-python-dev
-            context: images/node-python
-            rolling_tag: 22-alpine
-            build_args: |
-              NODE_VERSION=22-bullseye
-
-          - name: php-dev
-            context: images/php
-            rolling_tag: 8.1-fpm
-            build_args: |
-              PHP_VERSION=8.1.5-fpm
-          
-          - name: vpn-proxy-dev
-            context: images/vpn-proxy
-            rolling_tag: latest
-
+    outputs:
+      node: ${{ steps.changes.outputs.node }}
+      php: ${{ steps.changes.outputs.php }}
+      vpn-proxy: ${{ steps.changes.outputs.vpn-proxy }}
+      node-python: ${{ steps.changes.outputs.node-python }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            node:
+              - 'images/node/**'
+            php:
+              - 'images/php/**'
+            vpn-proxy:
+              - 'images/vpn-proxy/**'
+            node-python:
+              - 'images/node-python/**'
 
-      - name: Set up QEMU (multi-arch)
-        uses: docker/setup-qemu-action@v3
-
+  build-node:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.node == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Compute tags
-        id: meta
-        run: |
-          DATE_TAG=$(date +%Y%m%d)
-          echo "date_tag=$DATE_TAG" >> $GITHUB_OUTPUT
-          SHORT_SHA=${GITHUB_SHA::7}
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-
-      - name: Build & push ${{ matrix.name }}
-        uses: docker/build-push-action@v6
+      - name: Build and push Node.js image
+        uses: docker/build-push-action@v5
         with:
-          context: ${{ matrix.context }}
-          push: true
+          context: ./images/node
           platforms: linux/amd64,linux/arm64
-          build-args: ${{ matrix.build_args }}
+          push: true
+          build-args: |
+            NODE_VERSION=${{ matrix.node-version }}-alpine
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:${{ matrix.rolling_tag }}
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:${{ steps.meta.outputs.date_tag }}
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:${{ steps.meta.outputs.short_sha }}
-          labels: |
-            org.opencontainers.image.source=${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ steps.meta.outputs.date_tag }}
+            ghcr.io/${{ github.repository_owner }}/node-dev:${{ matrix.node-version }}
+            ghcr.io/${{ github.repository_owner }}/node-dev:${{ matrix.node-version }}-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-php:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.php == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: [8.1, 8.2, 8.3]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push PHP image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./images/php
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            PHP_VERSION=${{ matrix.php-version }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/php-dev:${{ matrix.php-version }}
+            ghcr.io/${{ github.repository_owner }}/php-dev:${{ matrix.php-version }}-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-vpn-proxy:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.vpn-proxy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push VPN Proxy image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./images/vpn-proxy
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/vpn-proxy:latest
+            ghcr.io/${{ github.repository_owner }}/vpn-proxy:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-node-python:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.node-python == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Node-Python image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./images/node-python
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            NODE_VERSION=${{ matrix.node-version }}-bullseye
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/node-python-dev:${{ matrix.node-version }}
+            ghcr.io/${{ github.repository_owner }}/node-python-dev:${{ matrix.node-version }}-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
