@@ -32,6 +32,12 @@ jobs:
             build_args: |
               NODE_VERSION=22-alpine
 
+          - name: node-python-dev
+            context: images/node-python
+            rolling_tag: 22-alpine
+            build_args: |
+              NODE_VERSION=22-bullseye
+
           - name: php-dev
             context: images/php
             rolling_tag: 8.1-fpm
